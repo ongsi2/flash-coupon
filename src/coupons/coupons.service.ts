@@ -4,6 +4,7 @@ import {InjectRepository} from "@nestjs/typeorm";
 import {Coupon} from "./coupon.entity";
 import {CreateCouponDto} from "./dto/create-coupon.dto";
 import {UpdateCouponDto} from "./dto/update-coupon.dto";
+import {RedisService} from "../redis/redis.service";
 
 @Injectable()
 export class CouponsService {
@@ -11,6 +12,7 @@ export class CouponsService {
     constructor(
         @InjectRepository(Coupon)
         private readonly couponRepository: Repository<Coupon>,
+        private readonly redisService: RedisService,
     ){}
 
     async create(createDto: CreateCouponDto): Promise<Coupon> {
@@ -21,7 +23,12 @@ export class CouponsService {
             issuedQuantity: 0,
             });
 
-        return this.couponRepository.save(coupon);
+        const saved = await this.couponRepository.save(coupon);
+
+        const redis = this.redisService.getClient();
+        await redis.set(`coupon:${saved.id}:remaining`, saved.totalQuantity)
+
+        return saved;
     }
 
     findAll(): Promise<Coupon[]> {

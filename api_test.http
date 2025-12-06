@@ -1,0 +1,22 @@
+### GET request to example server
+POST http://localhost:3000/api/admin/coupons
+Content-Type: application/json
+
+{
+  "name": "100개 한정 선착순 쿠폰",
+  "type": "FCFS",
+  "discountType": "AMOUNT",
+  "discountValue": 3000,
+  "totalQuantity": 100,
+  "startAt": "2025-12-01T00:00:00.000Z",
+  "endAt": "2025-12-31T23:59:59.000Z"
+}
+
+
+
+
+###
+
+GET http://localhost:3000/api/admin/coupons
+
+###
