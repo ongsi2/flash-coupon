@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
 import { CouponsModule } from './coupons/coupons.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
     imports: [
@@ -33,6 +34,8 @@ import { CouponsModule } from './coupons/coupons.module';
         UsersModule,
 
         CouponsModule,
+
+        RedisModule,
     ],
     controllers: [AppController],
     providers: [AppService],
