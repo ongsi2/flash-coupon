@@ -3,7 +3,7 @@ import {Repository} from "typeorm";
 import {InjectRepository} from "@nestjs/typeorm";
 import {Coupon} from "./coupon.entity";
 import {CreateCouponDto} from "./dto/create-coupon.dto";
-import {UpdateCouponDto} from "./dto/update-coupon.dtoi";
+import {UpdateCouponDto} from "./dto/update-coupon.dto";
 
 @Injectable()
 export class CouponsService {

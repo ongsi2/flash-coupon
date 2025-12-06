@@ -2,7 +2,7 @@ import {Body, Controller, Get, Param, Post, Patch} from '@nestjs/common';
 import {CouponsService} from "./coupons.service";
 import {CreateCouponDto} from "./dto/create-coupon.dto";
 import {Coupon} from "./coupon.entity";
-import {UpdateCouponDto} from "./dto/update-coupon.dtoi";
+import {UpdateCouponDto} from "./dto/update-coupon.dto";
 
 @Controller('api/admin/coupons')
 export class CouponsController {
