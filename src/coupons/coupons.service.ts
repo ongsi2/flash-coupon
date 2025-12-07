@@ -6,6 +6,13 @@ import {CreateCouponDto} from "./dto/create-coupon.dto";
 import {UpdateCouponDto} from "./dto/update-coupon.dto";
 import {RedisService} from "../redis/redis.service";
 
+export type IssueResultStatus = 'SUCCESS' | 'DUPLICATED' | 'SOLD_OUT';
+
+export interface IssueResult {
+    status: IssueResultStatus;
+    remaining?: number;
+}
+
 @Injectable()
 export class CouponsService {
 
@@ -65,5 +72,14 @@ export class CouponsService {
         if (result.affected === 0) {
             throw new NotFoundException("쿠폰을 찾을 수 없습니다.")
         }
+    }
+
+    async issueCoupon(couponId: string, userId: string): Promise<IssueResult> {
+        const result = await this.redisService.issueCouponWithLua(couponId, userId);
+
+        if (result === -1) return {status: 'DUPLICATED'};
+        if (result === 0) return {status: 'SOLD_OUT'};
+        return { status: 'SUCCESS', remaining: result};
+
     }
 }

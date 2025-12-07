@@ -20,3 +20,11 @@ Content-Type: application/json
 GET http://localhost:3000/api/admin/coupons
 
 ###
+
+### 쿠폰 발급 시도
+POST http://localhost:3000/api/admin/coupons/333cb9ea-56d9-42eb-a26b-e07f282147cf/issue
+Content-Type: application/json
+
+{
+  "userId": "user-3"
+}

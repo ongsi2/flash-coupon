@@ -4,6 +4,7 @@ import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColu
 export type CouponType = 'FCFS' | 'LOTTERY' | 'CODE';
 export type DiscountType = 'RATE' | 'AMOUNT';
 
+
 @Entity({name: 'coupons'})
 export class Coupon {
 
