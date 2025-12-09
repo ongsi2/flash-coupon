@@ -1,6 +1,7 @@
-import {Controller, Get, Post} from '@nestjs/common';
+import {Body, Controller, Get, Post} from '@nestjs/common';
 import {UsersService} from "./users.service";
 import {User} from "./user.entity";
+import {CreateUserDto} from "./dto/create-user.dto";
 
 @Controller('users')
 export class UsersController {
@@ -13,11 +14,7 @@ export class UsersController {
     }
 
     @Post("test")
-    async createTestUser(): Promise<User>{
-        const random = Math.floor(Math.random() * 10000);
-        const email = `test${random}@example.com`;
-        const name = `테스트유저${random}`;
-
-        return this.usersService.createTestUser(email, name);
+    async createTestUser(@Body() createUserDto: CreateUserDto): Promise<User>{
+        return this.usersService.createTestUser(createUserDto.email, createUserDto.name);
     }
 }
