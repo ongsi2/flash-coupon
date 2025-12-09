@@ -1,4 +1,5 @@
-import {Column, CreateDateColumn, Entity, PrimaryGeneratedColumn, UpdateDateColumn} from "typeorm";
+import {Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn} from "typeorm";
+import {IssuedCoupon} from "./entities/issued-coupon.entity";
 
 
 export type CouponType = 'FCFS' | 'LOTTERY' | 'CODE';
@@ -40,5 +41,8 @@ export class Coupon {
 
     @UpdateDateColumn({name: 'updated_at'})
     updateAt: Date;
+
+    @OneToMany(() => IssuedCoupon, (issued) => issued.coupon)
+    issuedCoupons: IssuedCoupon[];
 
 }

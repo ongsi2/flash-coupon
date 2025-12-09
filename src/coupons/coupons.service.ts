@@ -5,8 +5,11 @@ import {Coupon} from "./coupon.entity";
 import {CreateCouponDto} from "./dto/create-coupon.dto";
 import {UpdateCouponDto} from "./dto/update-coupon.dto";
 import {RedisService} from "../redis/redis.service";
+import {IssuedCouponsService} from "./services/issued-coupons.service";
+import {UsersService} from "../users/users.service";
+import {CouponWithStatsDto} from "./dto/coupon-with-stats.dto";
 
-export type IssueResultStatus = 'SUCCESS' | 'DUPLICATED' | 'SOLD_OUT';
+export type IssueResultStatus = 'SUCCESS' | 'DUPLICATED' | 'SOLD_OUT' | 'EXPIRED' | 'NOT_STARTED';
 
 export interface IssueResult {
     status: IssueResultStatus;
@@ -20,6 +23,8 @@ export class CouponsService {
         @InjectRepository(Coupon)
         private readonly couponRepository: Repository<Coupon>,
         private readonly redisService: RedisService,
+        private readonly issuedCouponsService: IssuedCouponsService,
+        private readonly usersService: UsersService,
     ){}
 
     async create(createDto: CreateCouponDto): Promise<Coupon> {
@@ -75,11 +80,74 @@ export class CouponsService {
     }
 
     async issueCoupon(couponId: string, userId: string): Promise<IssueResult> {
+        // 1. 쿠폰 존재 확인
+        const coupon = await this.findOne(couponId);
+
+        // 2. 사용자 존재 확인
+        const user = await this.usersService.findOne(userId);
+        if (!user) {
+            throw new NotFoundException('사용자를 찾을 수 없습니다');
+        }
+
+        // 3. 기간 검증
+        const now = new Date();
+        if (now < coupon.startAt) {
+            return { status: 'NOT_STARTED' };
+        }
+        if (now > coupon.endAt) {
+            return { status: 'EXPIRED' };
+        }
+
+        // 4. Redis 원자적 발급
         const result = await this.redisService.issueCouponWithLua(couponId, userId);
 
         if (result === -1) return {status: 'DUPLICATED'};
         if (result === 0) return {status: 'SOLD_OUT'};
-        return { status: 'SUCCESS', remaining: result};
 
+        // 5. DB 저장 (비동기, 실패해도 Redis는 성공으로 처리)
+        this.issuedCouponsService.createIssuedCoupon(
+            couponId,
+            userId,
+            coupon.endAt
+        ).catch(error => {
+            console.error('[ERROR] Failed to persist issued coupon:', error);
+        });
+
+        return { status: 'SUCCESS', remaining: result};
+    }
+
+    async findAllWithStats(): Promise<CouponWithStatsDto[]> {
+        const coupons = await this.findAll();
+        const redis = this.redisService.getClient();
+
+        return Promise.all(
+            coupons.map(async (coupon) => {
+                const stats = await this.issuedCouponsService.getCouponStats(coupon.id);
+                const remaining = await redis.get(`coupon:${coupon.id}:remaining`);
+
+                return {
+                    ...coupon,
+                    stats: {
+                        ...stats,
+                        remainingCount: parseInt(remaining || '0', 10),
+                    }
+                };
+            })
+        );
+    }
+
+    async findOneWithStats(id: string): Promise<CouponWithStatsDto> {
+        const coupon = await this.findOne(id);
+        const stats = await this.issuedCouponsService.getCouponStats(id);
+        const redis = this.redisService.getClient();
+        const remaining = await redis.get(`coupon:${id}:remaining`);
+
+        return {
+            ...coupon,
+            stats: {
+                ...stats,
+                remainingCount: parseInt(remaining || '0', 10),
+            }
+        };
     }
 }

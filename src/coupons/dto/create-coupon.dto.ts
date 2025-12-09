@@ -1,5 +1,6 @@
 import {IsDateString, IsIn, IsInt, IsNotEmpty, IsString, Min} from "class-validator";
 import type {CouponType, DiscountType} from "../coupon.entity";
+import {IsDateRangeValid} from "../../common/validators/date-range.validator";
 
 export class CreateCouponDto {
 
@@ -24,6 +25,7 @@ export class CreateCouponDto {
     @IsDateString()
     startAt: string;
 
+    @IsDateRangeValid()
     @IsDateString()
     endAt: string;
 

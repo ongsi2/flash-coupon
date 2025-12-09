@@ -1,5 +1,5 @@
 ### GET request to example server
-POST http://localhost:3000/api/admin/coupons
+POST http://134.185.106.248:3000/api/admin/coupons
 Content-Type: application/json
 
 {
@@ -17,7 +17,7 @@ Content-Type: application/json
 
 ###
 
-GET http://localhost:3000/api/admin/coupons
+GET http://thmm.kr/api/admin/coupons
 
 ###
 
