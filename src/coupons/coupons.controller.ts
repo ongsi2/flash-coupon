@@ -49,4 +49,9 @@ export class CouponsController {
         };
     }
 
+    @Post('sync/redis')
+    async syncRedis() {
+        return this.couponsService.syncRedisFromDatabase();
+    }
+
 }

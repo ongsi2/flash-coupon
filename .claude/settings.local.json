@@ -7,7 +7,10 @@
       "Bash(taskkill:*)",
       "Bash(npx create-next-app:*)",
       "Bash(npm install:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npx create-next-app@latest:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

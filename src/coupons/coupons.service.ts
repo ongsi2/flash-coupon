@@ -150,4 +150,23 @@ export class CouponsService {
             }
         };
     }
+
+    async syncRedisFromDatabase(): Promise<{ message: string; synced: number }> {
+        const coupons = await this.findAll();
+        const redis = this.redisService.getClient();
+        let synced = 0;
+
+        for (const coupon of coupons) {
+            const stats = await this.issuedCouponsService.getCouponStats(coupon.id);
+            const remaining = coupon.totalQuantity - stats.issuedCount;
+
+            await redis.set(`coupon:${coupon.id}:remaining`, Math.max(0, remaining));
+            synced++;
+        }
+
+        return {
+            message: `Successfully synced ${synced} coupons from database to Redis`,
+            synced
+        };
+    }
 }
