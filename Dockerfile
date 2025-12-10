@@ -6,8 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (allow peer warnings)
+RUN npm ci --legacy-peer-deps
 
 # Copy source code
 COPY . .
@@ -23,8 +23,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install production dependencies only
-RUN npm ci --only=production
+# Install production dependencies only (allow peer warnings)
+RUN npm ci --only=production --legacy-peer-deps
 
 # Copy built application from builder
 COPY --from=builder /app/dist ./dist
