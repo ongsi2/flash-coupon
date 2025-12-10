@@ -1,12 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import {ValidationPipe} from "@nestjs/common";
+import { ValidationPipe } from "@nestjs/common";
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS 활성화 (모든 origin 허용 - 개발용)
+  const basePath = (process.env.BASE_PATH || '').replace(/\/+$/, '');
+  const swaggerPath = `${basePath ? `${basePath}/` : ''}api/docs`.replace(/^\/+/, '');
+
+  // CORS 설정 (모든 origin 허용 - 개발용)
   app.enableCors({
     origin: true,
     credentials: true,
@@ -29,7 +32,7 @@ async function bootstrap() {
       .setVersion('1.0')
       .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(swaggerPath, app, document);
 
   await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
 }
