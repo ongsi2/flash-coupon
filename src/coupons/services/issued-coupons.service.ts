@@ -3,13 +3,13 @@ import {
     ConflictException,
     ForbiddenException,
     Injectable,
-    NotFoundException
+    NotFoundException,
 } from '@nestjs/common';
-import {InjectRepository} from "@nestjs/typeorm";
-import {Repository} from "typeorm";
-import {IssuedCoupon, IssuedCouponStatus} from "../entities/issued-coupon.entity";
-import {GetMyCouponsQueryDto} from "../dto/get-my-coupons-query.dto";
-import {CouponStats} from "../dto/coupon-with-stats.dto";
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { IssuedCoupon, IssuedCouponStatus } from '../entities/issued-coupon.entity';
+import { GetMyCouponsQueryDto } from '../dto/get-my-coupons-query.dto';
+import { CouponStats } from '../dto/coupon-with-stats.dto';
 
 export interface PaginationMeta {
     total: number;
@@ -25,11 +25,11 @@ export class IssuedCouponsService {
         private readonly issuedCouponRepo: Repository<IssuedCoupon>,
     ) {}
 
-    // 발급 내역 저장
+    // 발급 내역 생성
     async createIssuedCoupon(
         couponId: string,
         userId: string,
-        expiresAt: Date
+        expiresAt: Date,
     ): Promise<IssuedCoupon> {
         const issued = this.issuedCouponRepo.create({
             couponId,
@@ -44,16 +44,16 @@ export class IssuedCouponsService {
         } catch (error: any) {
             // PostgreSQL unique constraint violation
             if (error.code === '23505') {
-                throw new ConflictException('이미 발급된 쿠폰입니다');
+                throw new ConflictException('이미 발급한 쿠폰입니다.');
             }
             throw error;
         }
     }
 
-    // 사용자 쿠폰 목록 조회 (페이징)
+    // 사용자 쿠폰 목록 조회(페이지네이션)
     async findUserCoupons(
         userId: string,
-        queryDto: GetMyCouponsQueryDto
+        queryDto: GetMyCouponsQueryDto,
     ): Promise<{ data: IssuedCoupon[]; meta: PaginationMeta }> {
         const { status, page = 1, limit = 20 } = queryDto;
 
@@ -78,35 +78,32 @@ export class IssuedCouponsService {
                 total,
                 page,
                 limit,
-                totalPages: Math.ceil(total / limit)
-            }
+                totalPages: Math.ceil(total / limit),
+            },
         };
     }
 
     // 쿠폰 사용 처리
-    async useCoupon(
-        issuedCouponId: string,
-        userId: string
-    ): Promise<IssuedCoupon> {
+    async useCoupon(issuedCouponId: string, userId: string): Promise<IssuedCoupon> {
         const issued = await this.issuedCouponRepo.findOne({
             where: { id: issuedCouponId },
-            relations: ['coupon']
+            relations: ['coupon'],
         });
 
         if (!issued) {
-            throw new NotFoundException('발급된 쿠폰을 찾을 수 없습니다');
+            throw new NotFoundException('발급된 쿠폰을 찾을 수 없습니다.');
         }
 
         if (issued.userId !== userId) {
-            throw new ForbiddenException('본인의 쿠폰만 사용할 수 있습니다');
+            throw new ForbiddenException('본인의 쿠폰만 사용할 수 있습니다.');
         }
 
         if (issued.status === IssuedCouponStatus.USED) {
-            throw new BadRequestException('이미 사용된 쿠폰입니다');
+            throw new BadRequestException('이미 사용된 쿠폰입니다.');
         }
 
         if (issued.status === IssuedCouponStatus.EXPIRED || new Date() > issued.expiresAt) {
-            throw new BadRequestException('만료된 쿠폰입니다');
+            throw new BadRequestException('만료된 쿠폰입니다.');
         }
 
         issued.status = IssuedCouponStatus.USED;
@@ -126,10 +123,10 @@ export class IssuedCouponsService {
             .getRawMany();
 
         return {
-            issuedCount: Number(stats.find(s => s.status === 'ISSUED')?.count || 0),
-            usedCount: Number(stats.find(s => s.status === 'USED')?.count || 0),
-            expiredCount: Number(stats.find(s => s.status === 'EXPIRED')?.count || 0),
-            remainingCount: 0, // Redis에서 조회하므로 여기서는 0으로 설정
+            issuedCount: Number(stats.find((s) => s.status === 'ISSUED')?.count || 0),
+            usedCount: Number(stats.find((s) => s.status === 'USED')?.count || 0),
+            expiredCount: Number(stats.find((s) => s.status === 'EXPIRED')?.count || 0),
+            remainingCount: 0, // Redis에서 조회하므로 여기서는 0으로 세팅
         };
     }
 }

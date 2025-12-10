@@ -5,7 +5,7 @@ export function IsDateRangeValid(validationOptions?: ValidationOptions) {
         registerDecorator({
             name: 'isDateRangeValid',
             target: object.constructor,
-            propertyName: propertyName,
+            propertyName,
             options: validationOptions,
             validator: {
                 validate(value: any, args: ValidationArguments) {
@@ -15,9 +15,9 @@ export function IsDateRangeValid(validationOptions?: ValidationOptions) {
                     return startAt < endAt;
                 },
                 defaultMessage() {
-                    return '시작일은 종료일보다 이전이어야 합니다';
-                }
-            }
+                    return '시작일이 종료일보다 앞서야 합니다.';
+                },
+            },
         });
     };
 }
