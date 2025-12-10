@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
 import { IssuedCouponsService } from '../services/issued-coupons.service';
 import { GetMyCouponsQueryDto } from '../dto/get-my-coupons-query.dto';
 import { UseCouponDto } from '../dto/use-coupon.dto';
 
+@ApiTags('User Coupons')
 @Controller('api/user/coupons')
 export class UserCouponsController {
     constructor(
