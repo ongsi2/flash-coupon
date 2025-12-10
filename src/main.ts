@@ -8,6 +8,11 @@ async function bootstrap() {
 
   const basePath = (process.env.BASE_PATH || '').replace(/\/+$/, '');
   const swaggerPath = `${basePath ? `${basePath}/` : ''}api/docs`.replace(/^\/+/, '');
+  const globalPrefix = basePath.replace(/^\/+/, '');
+
+  if (globalPrefix) {
+    app.setGlobalPrefix(globalPrefix);
+  }
 
   // CORS 설정 (모든 origin 허용 - 개발용)
   app.enableCors({
