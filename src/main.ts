@@ -6,13 +6,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const basePath = (process.env.BASE_PATH || '').replace(/\/+$/, '');
-  const swaggerPath = `${basePath ? `${basePath}/` : ''}api/docs`.replace(/^\/+/, '');
-  const globalPrefix = basePath.replace(/^\/+/, '');
-
-  if (globalPrefix) {
-    app.setGlobalPrefix(globalPrefix);
-  }
+  const swaggerPath = 'api/docs';
 
   // CORS 설정 (모든 origin 허용 - 개발용)
   app.enableCors({
