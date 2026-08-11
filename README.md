@@ -55,11 +55,13 @@
 💾 0.5초: 백그라운드에서 PostgreSQL에 발급 기록 저장
 ```
 
-**동시 접속 시나리오:**
+**동시 접속 시나리오 (설계 목표):**
 - 1,000명이 동시에 100개 쿠폰 요청
 - Redis Lua Script로 정확히 100명만 성공 처리
 - 나머지 900명은 "품절" 메시지 수신
-- 모든 요청이 평균 50ms 이내 응답
+
+> 위 시나리오와 아래 응답 시간은 **설계 목표**입니다.
+> 실제 측정값은 [성능 측정](#성능-측정) 섹션을 참고하세요.
 
 ## 주요 기능
 
@@ -94,8 +96,9 @@
 #### Redis + Lua Script
 - **원자적 연산**: EVAL 명령으로 여러 Redis 명령을 트랜잭션으로 실행
 - **단일 스레드 모델**: Race Condition 원천 차단
-- **높은 처리량**: 초당 10만+ 요청 처리 가능
-- **낮은 레이턴시**: 평균 응답 시간 < 1ms
+- **인메모리 연산**: 디스크 I/O 없이 처리하므로 RDBMS 비관적 락 대비 레이턴시가 낮음
+
+  (구체적 처리량·레이턴시는 [성능 측정](#성능-측정) 참고)
 
 #### PostgreSQL
 - **ACID 보장**: 데이터 정합성 및 일관성 유지
@@ -224,12 +227,13 @@ npm run start:dev
 
 ### Docker Compose로 전체 스택 실행 (추천)
 
-Docker Compose를 사용하면 PostgreSQL, Redis, 백엔드, 프론트엔드를 한 번에 실행할 수 있습니다.
+PostgreSQL, Redis, 백엔드를 한 번에 실행합니다. 별도 설치 없이 이 리포만 클론하면 됩니다.
 
 ```bash
-# 프로젝트 루트 디렉토리에서
-cd C:\springboot\node-js
-docker-compose up -d --build
+git clone https://github.com/ongsi2/flash-coupon.git
+cd flash-coupon
+cp .env.example .env
+docker compose up -d --build
 ```
 
 서비스 확인:
@@ -248,10 +252,12 @@ docker-compose down
 ```
 
 접속 정보:
-- **Frontend**: http://localhost:3001
 - **Backend API**: http://localhost:3000
+- **API 문서 (Swagger)**: http://localhost:3000/api/docs
 - **PostgreSQL**: localhost:5432
 - **Redis**: localhost:6379
+
+프론트엔드는 별도 리포입니다: [flash-coupon-frontend](https://github.com/ongsi2/flash-coupon-frontend)
 
 ## API 엔드포인트
 
@@ -507,7 +513,24 @@ CREATE INDEX idx_issued_coupons_coupon_status ON issued_coupons(coupon_id, statu
 **Layer 1 - Redis (Primary)**
 - Lua Script를 통한 원자적 연산
 - 중복 발급 및 재고 관리
-- 빠른 응답 속도 (< 10ms)
+
+**Lua 반환값 규약**
+
+`[code, remaining]` 2원소 배열로 반환합니다.
+
+| code | 의미 | remaining |
+|---|---|---|
+| `1` | 발급 성공 | 발급 후 잔여 수량 |
+| `0` | 재고 소진 | 0 |
+| `-1` | 중복 발급 | 0 |
+
+> **왜 배열인가:** 초기 구현은 단일 정수에 상태와 값을 함께 실었습니다
+> (성공 시 `remaining - 1`, 소진 시 `0`, 중복 시 `-1`).
+> 이 경우 **마지막 1개를 발급한 결과(`0`)** 와 **재고 소진(`0`)** 이 구분되지 않아,
+> 재고가 1개 남았을 때 Redis에서는 차감·발급 기록이 남지만 호출부는 `SOLD_OUT`으로
+> 판단해 DB에 기록하지 않았습니다. 해당 사용자는 발급 키가 이미 설정되어
+> 재시도 시 `DUPLICATED`로 차단됐고, 결과적으로 **재고 1개가 누락**됐습니다.
+> sentinel 값과 유효 값의 도메인이 겹친 문제라, 상태와 값을 분리했습니다.
 
 **Layer 2 - Database (Safety Net)**
 - UNIQUE 제약조건으로 중복 방지
@@ -525,7 +548,7 @@ CREATE INDEX idx_issued_coupons_coupon_status ON issued_coupons(coupon_id, statu
 
 ### 1. 테스트 사용자 생성
 ```http
-POST http://localhost:3000/users/test
+POST http://localhost:3000/api/users/test
 Content-Type: application/json
 
 {
@@ -574,6 +597,101 @@ Content-Type: application/json
   "userId": "{USER_ID}"
 }
 ```
+
+## 정합성 검증
+
+Redis만 있으면 재현할 수 있습니다. NestJS도 PostgreSQL도 필요 없습니다.
+
+```bash
+docker compose up -d redis
+npm run check:lua
+```
+
+**재고 100개에 1,000명 동시 요청**
+
+| 검증 항목 | 결과 |
+|---|---|
+| 발급 성공 | 100 |
+| 품절 응답 | 900 |
+| 중복 응답 | 0 |
+| Redis 잔여 수량 | 0 |
+| 성공 응답이 돌려준 잔여 수량 | 99→0, **100개 모두 고유** |
+
+잔여 수량이 전부 고유하다는 것은 **어떤 요청도 같은 재고를 두 번 가져가지 않았다**는 뜻입니다.
+동일 사용자가 50번 동시에 요청한 경우에도 1번만 성공하고 재고는 1개만 차감됐습니다.
+
+### 수정 전/후 대조
+
+발급 결과의 반환값 설계를 바꾸기 전후를 같은 조건에서 비교한 것입니다.
+(`npm run check:lua` 의 시나리오 5가 옛 스크립트를 그대로 재현합니다)
+
+| | 수정 전 | 수정 후 |
+|---|---|---|
+| 사용자에게 발급 성공 | 99 | **100** |
+| 실제 차감된 재고 | 100 | 100 |
+| **누락 (차감됐지만 미발급)** | **1** | **0** |
+
+수정 전에는 재고가 100개 줄었는데 99명만 받았습니다.
+마지막 1개를 발급한 결과(잔여 `0`)가 품절(`0`)과 구분되지 않았기 때문입니다.
+자세한 내용은 [Lua 반환값 규약](#lua-반환값-규약)을 참고하세요.
+
+### 알려진 한계
+
+- **발급 이력 TTL이 86400초로 고정**되어 있습니다. 쿠폰 기간이 24시간보다 길면
+  이력이 먼저 만료되어 같은 사용자의 재발급이 통과하고 재고만 추가로 차감됩니다.
+  `check:lua` 시나리오 4가 TTL을 1초로 축소해 이 경로를 재현합니다.
+- **DB 기록이 fire-and-forget**입니다. 저장 실패 시 로그만 남고 유실되며,
+  사용자는 성공 응답을 받고도 쿠폰을 갖지 못합니다. `npm run verify` 가 이를 숫자로 잡아냅니다.
+
+## 성능 측정
+
+```bash
+docker compose up -d --build
+npm run seed                                  # 사용자 3,000명 + 재고 1,000개
+k6 run k6/issue-coupon.js                     # stampede
+npm run verify -- --issued=<SUCCESS 수>       # 3자 대조
+```
+
+**측정 환경**
+
+| 항목 | 값 |
+|---|---|
+| 도구 | k6 v2.1.0 |
+| 시나리오 | `shared-iterations` — 200 VU, 3,000 반복 (재고의 3배) |
+| 실행 환경 | AMD Ryzen 7 8845HS / 32GB / Docker Desktop (WSL2), 단일 노드 |
+| `DB_LOGGING` | `false` — 쿼리 로깅은 결과를 왜곡하므로 반드시 off |
+
+부하 생성기와 서버가 같은 머신에서 도는 로컬 측정입니다.
+절대 수치보다 **개선 전후의 상대 변화**를 보기 위한 것입니다.
+
+**결과 — 재고 1,000개에 3,000명 동시 요청**
+
+| 지표 | 측정값 |
+|---|---|
+| 처리량 | **806 req/s** (3,001 요청 / 3.7초) |
+| p50 | 187 ms |
+| p95 | 353 ms |
+| **p99** | **1,110 ms** |
+| max | 1,250 ms |
+| 에러율 | **0.00%** |
+| 발급 성공 / 품절 / 중복 | 1,000 / 2,000 / **0** |
+
+**정합성 — 세 값이 모두 일치**
+
+| | 값 |
+|---|---|
+| (1) 설정 재고 − Redis 잔여 = 차감된 수 | 1,000 |
+| (2) `issued_coupons` 행 수 = 기록된 수 | 1,000 |
+| (3) k6 `SUCCESS` 응답 = 성공이라 답한 수 | 1,000 |
+
+초과 발급 0건, 누락 0건.
+
+**관찰: p99가 p50의 약 6배**
+
+에러 없이 정합성은 지켜지지만 꼬리 지연이 큽니다.
+발급 경로가 Redis 원자 연산에 닿기 전에 **매 요청마다 DB를 두 번 조회**하는 구조
+(`쿠폰 조회` → `사용자 조회` → Redis)라는 점이 유력한 후보입니다.
+원인 분석과 개선은 후속 작업으로 남겨둡니다.
 
 ## 성능 최적화
 
