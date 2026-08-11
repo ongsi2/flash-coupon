@@ -30,6 +30,11 @@ import { RedisModule } from './redis/redis.module';
                 synchronize: config.get<string>('DB_SYNCHRONIZE', 'false') === 'true',
                 // 쿼리 로깅은 부하 테스트 결과를 왜곡하므로 기본 off.
                 logging: config.get<string>('DB_LOGGING', 'false') === 'true',
+                // pg 드라이버 기본 풀 크기는 10이다. 동시 요청이 그보다 많으면
+                // 커넥션을 기다리는 시간이 그대로 꼬리 지연이 된다.
+                extra: {
+                    max: Number(config.get<string>('DB_POOL_MAX', '10')),
+                },
             }),
         }),
 

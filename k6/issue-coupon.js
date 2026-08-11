@@ -42,6 +42,20 @@ const scenarios = {
         iterations: Number(__ENV.ITERATIONS || Math.min(seed.stock * 3, seed.userIds.length)),
         maxDuration: '5m',
     },
+    // 도착률을 고정해 그 부하에서의 실제 지연을 잰다.
+    // 여러 RATE로 반복 실행해 지연이 꺾이는 지점(knee)을 찾는 용도.
+    //
+    // 닫힌 모델(stampede)은 VU가 응답을 받는 즉시 다음 요청을 보내므로
+    // 서버를 포화시킨다. 그 상태의 p99는 서버 성능이 아니라 대기열 길이를
+    // 재는 것이 되어, 지연 지표로는 의미가 없다.
+    constant: {
+        executor: 'constant-arrival-rate',
+        rate: Number(__ENV.RATE || 300),
+        timeUnit: '1s',
+        duration: __ENV.DURATION || '30s',
+        preAllocatedVUs: Number(__ENV.VUS || 200),
+        maxVUs: Number(__ENV.MAX_VUS || 2000),
+    },
     // 초당 요청 수를 단계적으로 올려 한계점을 찾는다. 성능 측정이 목적.
     ramp: {
         executor: 'ramping-arrival-rate',
@@ -70,6 +84,9 @@ export const options = {
         // ramp는 도착률 × 시간이라 총 반복 횟수가 사용자 수를 넘을 수 있고,
         // 그때는 인덱스가 한 바퀴 돌아 중복이 나오는 게 정상이다. 그래서 걸지 않는다.
         ...(SCENARIO === 'stampede' ? { coupon_duplicated: ['count==0'] } : {}),
+
+        // 도착률을 못 맞추면(VU 부족 또는 서버 포화) 측정이 무의미해진다.
+        ...(SCENARIO === 'constant' ? { dropped_iterations: ['count==0'] } : {}),
 
         // 기준치가 아니라 기록이 목적이다. 실측 후 실제 값으로 조정한다.
         coupon_issue_duration: ['p(95)<500', 'p(99)<1000'],

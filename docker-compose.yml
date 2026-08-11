@@ -43,6 +43,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
       DB_SYNCHRONIZE: ${DB_SYNCHRONIZE:-true}
       DB_LOGGING: ${DB_LOGGING:-false}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       PORT: 3000

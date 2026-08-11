@@ -18,6 +18,7 @@ import { UsersService } from '../users/users.service';
 describe('CouponsService.issueCoupon', () => {
     let service: CouponsService;
     let redisService: { issueCouponWithLua: jest.Mock; getClient: jest.Mock };
+    let redisClient: { get: jest.Mock; set: jest.Mock; del: jest.Mock };
     let issuedCouponsService: { createIssuedCoupon: jest.Mock };
     let couponRepository: Partial<Record<keyof Repository<Coupon>, jest.Mock>>;
 
@@ -33,9 +34,17 @@ describe('CouponsService.issueCoupon', () => {
     } as Coupon;
 
     beforeEach(async () => {
+        // 기본은 캐시 적중. 발급 기간을 Redis에서 읽어 DB를 치지 않는다.
+        redisClient = {
+            get: jest.fn().mockResolvedValue(
+                JSON.stringify({ startAt: activeCoupon.startAt, endAt: activeCoupon.endAt }),
+            ),
+            set: jest.fn().mockResolvedValue('OK'),
+            del: jest.fn().mockResolvedValue(1),
+        };
         redisService = {
             issueCouponWithLua: jest.fn(),
-            getClient: jest.fn(),
+            getClient: jest.fn().mockReturnValue(redisClient),
         };
         issuedCouponsService = {
             createIssuedCoupon: jest.fn().mockResolvedValue(undefined),
@@ -96,11 +105,10 @@ describe('CouponsService.issueCoupon', () => {
         expect(result).toEqual({ status: 'SUCCESS', remaining: 42 });
     });
 
-    it('발급 시작 전이면 NOT_STARTED이며 Redis를 호출하지 않는다', async () => {
-        couponRepository.findOne!.mockResolvedValue({
-            ...activeCoupon,
-            startAt: new Date(Date.now() + 60_000),
-        });
+    it('발급 시작 전이면 NOT_STARTED이며 발급을 시도하지 않는다', async () => {
+        redisClient.get.mockResolvedValue(
+            JSON.stringify({ startAt: new Date(Date.now() + 60_000), endAt: activeCoupon.endAt }),
+        );
 
         const result = await service.issueCoupon(COUPON_ID, USER_ID);
 
@@ -108,15 +116,38 @@ describe('CouponsService.issueCoupon', () => {
         expect(redisService.issueCouponWithLua).not.toHaveBeenCalled();
     });
 
-    it('발급 기간이 지났으면 EXPIRED이며 Redis를 호출하지 않는다', async () => {
-        couponRepository.findOne!.mockResolvedValue({
-            ...activeCoupon,
-            endAt: new Date(Date.now() - 60_000),
-        });
+    it('발급 기간이 지났으면 EXPIRED이며 발급을 시도하지 않는다', async () => {
+        redisClient.get.mockResolvedValue(
+            JSON.stringify({ startAt: activeCoupon.startAt, endAt: new Date(Date.now() - 60_000) }),
+        );
 
         const result = await service.issueCoupon(COUPON_ID, USER_ID);
 
         expect(result).toEqual({ status: 'EXPIRED' });
         expect(redisService.issueCouponWithLua).not.toHaveBeenCalled();
+    });
+
+    describe('발급 기간 캐시', () => {
+        it('캐시가 있으면 쿠폰을 DB에서 조회하지 않는다', async () => {
+            redisService.issueCouponWithLua.mockResolvedValue({ code: 1, remaining: 42 });
+
+            await service.issueCoupon(COUPON_ID, USER_ID);
+
+            expect(couponRepository.findOne).not.toHaveBeenCalled();
+        });
+
+        it('캐시가 없으면 DB에서 읽어 캐시를 채운다', async () => {
+            redisClient.get.mockResolvedValue(null);
+            redisService.issueCouponWithLua.mockResolvedValue({ code: 1, remaining: 42 });
+
+            const result = await service.issueCoupon(COUPON_ID, USER_ID);
+
+            expect(couponRepository.findOne).toHaveBeenCalled();
+            expect(redisClient.set).toHaveBeenCalledWith(
+                `coupon:${COUPON_ID}:meta`,
+                JSON.stringify({ startAt: activeCoupon.startAt, endAt: activeCoupon.endAt }),
+            );
+            expect(result).toEqual({ status: 'SUCCESS', remaining: 42 });
+        });
     });
 });

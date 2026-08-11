@@ -48,3 +48,6 @@ export const remainingKeyOf = (couponId: string) => `coupon:${couponId}:remainin
 /** 사용자별 발급 이력 키 */
 export const issuedKeyOf = (couponId: string, userId: string) =>
     `coupon:${couponId}:issued:${userId}`;
+
+/** 쿠폰 메타데이터(발급 기간) 캐시 키 */
+export const metaKeyOf = (couponId: string) => `coupon:${couponId}:meta`;
