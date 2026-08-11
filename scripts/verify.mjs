@@ -28,6 +28,7 @@ const k6Issued = issuedArg ? Number(issuedArg.split('=')[1]) : null;
 const redis = new Redis({
     host: REDIS_HOST,
     port: REDIS_PORT,
+    password: process.env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: 1,
     retryStrategy: () => null,
 });

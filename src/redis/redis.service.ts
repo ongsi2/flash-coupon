@@ -25,6 +25,9 @@ export class RedisService {
         this.client = new Redis({
             host: this.configService.get('REDIS_HOST') || '127.0.0.1',
             port: this.configService.get('REDIS_PORT') || 6379,
+            // 공개망에 노출되는 환경에서는 requirepass가 필수다.
+            // 로컬 개발에서는 비워 두면 인증 없이 접속한다.
+            password: this.configService.get('REDIS_PASSWORD') || undefined,
         });
     }
 

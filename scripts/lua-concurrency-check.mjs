@@ -24,6 +24,7 @@ const PORT = Number(process.env.REDIS_PORT || 6379);
 const redis = new Redis({
     host: HOST,
     port: PORT,
+    password: process.env.REDIS_PASSWORD || undefined,
     maxRetriesPerRequest: 1,
     retryStrategy: () => null, // 연결 안 되면 즉시 포기 (검증기이므로 재시도 의미 없음)
 });

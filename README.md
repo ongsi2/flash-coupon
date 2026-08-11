@@ -259,6 +259,73 @@ docker-compose down
 
 프론트엔드는 별도 리포입니다: [flash-coupon-frontend](https://github.com/ongsi2/flash-coupon-frontend)
 
+## 공개 서버 배포
+
+기본 `docker-compose.yml`은 **로컬 개발용**입니다. PostgreSQL(5432)과 Redis(6379)를
+모든 인터페이스에 열어두므로, 공인 IP가 붙은 서버에 그대로 올리면 안 됩니다.
+특히 **인증 없는 Redis는 공개망에 노출되는 즉시 침해 대상**이 됩니다.
+
+배포에는 `docker-compose.prod.yml` 오버라이드를 함께 사용합니다.
+
+```bash
+cp .env.prod.example .env.prod
+# DB_PASSWORD, REDIS_PASSWORD, CORS_ORIGIN 을 채운다
+# 비밀번호 생성: openssl rand -base64 24
+
+docker compose --env-file .env.prod \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+| | 기본 | 배포 |
+|---|---|---|
+| PostgreSQL 포트 | 5432 공개 | **미노출** |
+| Redis 포트 | 6379 공개 | **미노출** |
+| Redis 인증 | 없음 | `requirepass` |
+| API 바인딩 | `0.0.0.0:3000` | **`127.0.0.1:3000`** |
+| `DB_SYNCHRONIZE` | `true` | `false` |
+| CORS | 전체 허용 | `CORS_ORIGIN` 목록만 |
+
+`DB_PASSWORD`·`REDIS_PASSWORD`·`CORS_ORIGIN` 중 하나라도 비어 있으면
+컨테이너가 뜨지 않습니다. 안전하지 않은 설정이 실수로 배포되는 것을 막기 위함입니다.
+
+**최초 1회**는 `DB_SYNCHRONIZE=true`로 띄워 테이블을 만든 뒤,
+`false`로 되돌리고 재기동하세요.
+
+### 외부 노출 (Nginx)
+
+API는 루프백에만 바인딩되므로 앞단에 리버스 프록시를 둡니다.
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name api.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/api.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+### 메모리가 작은 인스턴스
+
+이미지 빌드에 `npm ci`와 `nest build`가 포함되어 RAM을 씁니다.
+**1GB 급 인스턴스에서는 빌드 중 OOM이 발생할 수 있습니다.**
+그 경우 서버에서 빌드하지 말고, 로컬에서 빌드한 이미지를 레지스트리로 올린 뒤
+서버는 pull만 하도록 하세요. 이때 **서버와 동일한 아키텍처로 빌드**해야 합니다.
+
+```bash
+# ARM 서버(예: OCI Ampere A1)를 대상으로 로컬에서 빌드할 때
+docker buildx build --platform linux/arm64 -t <레지스트리>/flash-coupon-api:latest --push .
+```
+
 ## API 엔드포인트
 
 ### 관리자 API

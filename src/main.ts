@@ -8,9 +8,11 @@ async function bootstrap() {
 
   const swaggerPath = 'api/docs';
 
-  // CORS 설정 (모든 origin 허용 - 개발용)
+  // CORS_ORIGIN이 지정되면 그 목록만 허용한다(쉼표 구분).
+  // 지정하지 않으면 전체 허용 — 로컬 개발용이며 공개 배포에서는 반드시 지정할 것.
+  const corsOrigin = process.env.CORS_ORIGIN?.trim();
   app.enableCors({
-    origin: true,
+    origin: corsOrigin ? corsOrigin.split(',').map((o) => o.trim()) : true,
     credentials: true,
   });
 
