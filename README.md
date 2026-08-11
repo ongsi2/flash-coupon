@@ -665,6 +665,9 @@ Content-Type: application/json
 }
 ```
 
+> 무엇을 왜 그렇게 했는지, 틀렸던 가설까지 포함한 기록은
+> [docs/devlog.md](docs/devlog.md)에 있습니다.
+
 ## 정합성 검증
 
 Redis만 있으면 재현할 수 있습니다. NestJS도 PostgreSQL도 필요 없습니다.
