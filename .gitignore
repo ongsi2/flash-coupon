@@ -21,12 +21,16 @@ lerna-debug.log*
 
 # IDEs and editors
 /.idea
+*.iml
 .project
 .classpath
 .c9/
 *.launch
 .settings/
 *.sublime-workspace
+
+# AI 도구 로컬 설정 (개인 환경에 종속)
+.claude/
 
 # IDE - VSCode
 .vscode/*
@@ -45,6 +49,9 @@ lerna-debug.log*
 # temp directory
 .temp
 .tmp
+
+# 부하 테스트 시드 (npm run seed 로 생성)
+/k6/seed.json
 
 # Runtime data
 pids

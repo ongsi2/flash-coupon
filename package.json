@@ -1,10 +1,10 @@
 {
   "name": "flash-coupon-api",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "선착순 쿠폰 발급 시스템 - Redis Lua Script 기반 동시성 처리",
+  "author": "ongsi2",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -17,7 +17,10 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "check:lua": "npm run build && node scripts/lua-concurrency-check.mjs",
+    "seed": "node scripts/seed.mjs",
+    "verify": "node scripts/verify.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

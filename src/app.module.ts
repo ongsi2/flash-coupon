@@ -26,8 +26,10 @@ import { RedisModule } from './redis/redis.module';
                 username: config.get<string>('DB_USER'),
                 password: config.get<string>('DB_PASSWORD'),
                 autoLoadEntities: true, // 나중에 엔티티 자동 로딩
-                synchronize: true,      // 개발용: 엔티티로 테이블 자동 생성 (운영에서는 false)
-                logging: true,
+                // 개발용: 엔티티로 테이블 자동 생성. 운영/부하테스트에서는 반드시 false.
+                synchronize: config.get<string>('DB_SYNCHRONIZE', 'false') === 'true',
+                // 쿼리 로깅은 부하 테스트 결과를 왜곡하므로 기본 off.
+                logging: config.get<string>('DB_LOGGING', 'false') === 'true',
             }),
         }),
 
