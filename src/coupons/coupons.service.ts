@@ -98,10 +98,10 @@ export class CouponsService {
         }
 
         // 4. Redis Lua 스크립트로 발급 시도
-        const result = await this.redisService.issueCouponWithLua(couponId, userId);
+        const { code, remaining } = await this.redisService.issueCouponWithLua(couponId, userId);
 
-        if (result === -1) return { status: 'DUPLICATED' };
-        if (result === 0) return { status: 'SOLD_OUT' };
+        if (code === -1) return { status: 'DUPLICATED' };
+        if (code === 0) return { status: 'SOLD_OUT' };
 
         // 5. DB 기록(비동기) — Redis 성공 기준으로 처리
         this.issuedCouponsService
@@ -110,7 +110,7 @@ export class CouponsService {
                 console.error('[ERROR] Failed to persist issued coupon:', error);
             });
 
-        return { status: 'SUCCESS', remaining: result };
+        return { status: 'SUCCESS', remaining };
     }
 
     async findAllWithStats(): Promise<CouponWithStatsDto[]> {

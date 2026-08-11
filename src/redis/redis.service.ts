@@ -2,6 +2,19 @@ import {Injectable} from '@nestjs/common';
 import {ConfigService} from "@nestjs/config";
 
 import {Redis} from "ioredis";
+import {
+    DEFAULT_ISSUE_TTL_SECONDS,
+    ISSUE_COUPON_LUA,
+    issuedKeyOf,
+    remainingKeyOf,
+} from "./issue-coupon.script";
+
+export interface IssueLuaResult {
+    /** 1 = 발급 성공, 0 = 재고 소진, -1 = 중복 발급 */
+    code: number;
+    /** 발급 후 잔여 수량 (code === 1 일 때만 의미 있음) */
+    remaining: number;
+}
 
 
 @Injectable()
@@ -23,36 +36,28 @@ export class RedisService {
         console.log('Redis ping:', await this.client.ping());
     }
 
-    async issueCouponWithLua(couponId: string, userId: string):Promise<number>
+    /**
+     * 발급 시도. 스크립트 본문은 issue-coupon.script.ts 참고.
+     *
+     * @param ttlSeconds 발급 이력 TTL(초). 쿠폰 종료 시각까지로 넘기는 것이 맞다.
+     *                   기본값(24시간)은 쿠폰 기간이 그보다 길면 이력이 먼저 만료되어
+     *                   재발급이 통과하고 재고만 차감되는 문제가 있다.
+     */
+    async issueCouponWithLua(
+        couponId: string,
+        userId: string,
+        ttlSeconds: number = DEFAULT_ISSUE_TTL_SECONDS,
+    ):Promise<IssueLuaResult>
     {
-        const remainingKey = `coupon:${couponId}:remaining`;
-        const userKey = `coupon:${couponId}:issued:${userId}`;
+        const [code, remaining] = await this.client.eval(
+            ISSUE_COUPON_LUA,
+            2,
+            remainingKeyOf(couponId),
+            issuedKeyOf(couponId, userId),
+            String(ttlSeconds),
+        ) as [number, number];
 
-        const script = `
-            local key = KEYS[1]
-            local userKey = KEYS[2]
-    
-            -- 중복 발급 체크
-            if redis.call('EXISTS', userKey) == 1 then
-                return -1
-            end
-    
-            -- 남은 수량 확인
-            local remaining = tonumber(redis.call('GET', key))
-            if remaining == nil or remaining <= 0 then
-                return 0
-            end
-    
-            -- 수량 감소 & 발급 기록 저장
-            redis.call('DECR', key)
-            redis.call('SETEX', userKey, 86400, '1')
-    
-            return remaining - 1
-        `
-
-        const result = await this.client.eval(script, 2, remainingKey, userKey);
-
-        return Number(result);
+        return { code: Number(code), remaining: Number(remaining) };
     }
 
 }
